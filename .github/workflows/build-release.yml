@@ -1,4 +1,4 @@
-name: Build & Release MSI
+name: Build & Release Installer
 
 on:
   push:
@@ -9,11 +9,11 @@ on:
       version:
         description: "Versienummer (bijv. 1.0.0)"
         required: false
-        default: "dev"
+        default: "1.0.0"
 
 jobs:
   build:
-    name: Build Windows MSI
+    name: Build Windows Installer
     runs-on: windows-latest
 
     steps:
@@ -38,9 +38,8 @@ jobs:
 
       # ── Tesseract (optioneel; OCR-fallback) ──────────────────────────────────
       - name: Install Tesseract-OCR
-        run: |
-          choco install tesseract --params="/Languages:nld" -y
-        continue-on-error: true   # Niet fataal als Tesseract mislukt
+        run: choco install tesseract --params="/Languages:nld" -y
+        continue-on-error: true
 
       # ── PyInstaller: GUI ──────────────────────────────────────────────────────
       - name: Build PDF2MD_GUI
@@ -60,12 +59,9 @@ jobs:
             --collect-all fitz `
             apps/dragdrop.py
 
-      # ── WiX Toolset v3 ────────────────────────────────────────────────────────
-      - name: Install WiX Toolset v3
-        run: choco install wixtoolset -y
-
-      - name: Add WiX to PATH
-        run: echo "C:\Program Files (x86)\WiX Toolset v3.11\bin" >> $env:GITHUB_PATH
+      # ── Inno Setup ───────────────────────────────────────────────────────────
+      - name: Install Inno Setup
+        run: choco install innosetup -y
 
       # ── Bepaal versienummer ───────────────────────────────────────────────────
       - name: Set version
@@ -75,72 +71,40 @@ jobs:
             $v = "${{ github.ref_name }}" -replace "^v", ""
           } else {
             $v = "${{ github.event.inputs.version }}"
-            if (-not $v -or $v -eq "dev") { $v = "0.0.1" }
+            if (-not $v) { $v = "1.0.0" }
           }
-          # WiX vereist x.x.x formaat (alleen cijfers) — strip eventuele suffix
-          $wixV = ($v -replace "-.*$", "") -replace "[^0-9.]", ""
-          if (-not ($wixV -match "^\d+\.\d+\.\d+")) { $wixV = "0.0.1" }
           echo "VERSION=$v" >> $env:GITHUB_OUTPUT
-          echo "WIX_VERSION=$wixV" >> $env:GITHUB_OUTPUT
-          Write-Host "Version: $v  (WiX: $wixV)"
+          Write-Host "Version: $v"
 
-      # ── heat.exe: oogst bestanden ─────────────────────────────────────────────
-      - name: Heat GUI files
-        working-directory: pdf2md
-        run: |
-          heat.exe dir "dist\PDF2MD_GUI" `
-            -cg GUI_Files -gg -gl -gd -sfrag -srd `
-            -dr GUI_FOLDER -var var.GuiDir `
-            -out "installer\gui_files.wxs"
-
-      - name: Heat DragDrop files
-        working-directory: pdf2md
-        run: |
-          heat.exe dir "dist\PDF2MD_DragDrop" `
-            -cg DragDrop_Files -gg -gl -gd -sfrag -srd `
-            -dr DRAGDROP_FOLDER -var var.DragDropDir `
-            -out "installer\dragdrop_files.wxs"
-
-      # ── Patch versienummer in .wxs ────────────────────────────────────────────
-      - name: Patch version in pdf2md.wxs
+      # ── Patch versienummer in setup.iss ──────────────────────────────────────
+      - name: Patch version in setup.iss
         working-directory: pdf2md/installer
         run: |
-          $v = "${{ steps.version.outputs.WIX_VERSION }}"
-          (Get-Content pdf2md.wxs) -replace 'Version="1\.0\.0"', "Version=`"$v`"" |
-            Set-Content pdf2md.wxs
+          $v = "${{ steps.version.outputs.VERSION }}"
+          (Get-Content setup.iss) -replace 'AppVersion=.*', "AppVersion=$v" |
+            Set-Content setup.iss
 
-      # ── candle.exe ────────────────────────────────────────────────────────────
-      - name: Candle (compile wxs → wixobj)
+      # ── Inno Setup compileren ─────────────────────────────────────────────────
+      - name: Compile installer
         working-directory: pdf2md
         run: |
           New-Item -ItemType Directory -Force installer\Output | Out-Null
-          candle.exe -arch x64 `
-            "-dGuiDir=dist\PDF2MD_GUI" `
-            "-dDragDropDir=dist\PDF2MD_DragDrop" `
-            -out "installer\Output\" `
-            installer\pdf2md.wxs `
-            installer\gui_files.wxs `
-            installer\dragdrop_files.wxs
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\setup.iss
 
-      # ── light.exe ─────────────────────────────────────────────────────────────
-      - name: Light (link → MSI)
-        working-directory: pdf2md
+      # ── Hernoem naar versie ───────────────────────────────────────────────────
+      - name: Rename installer
         run: |
-          light.exe `
-            -ext WixUIExtension `
-            -ext WixUtilExtension `
-            -cultures:nl-NL `
-            -out "installer\Output\PDF2MD_${{ steps.version.outputs.WIX_VERSION }}.msi" `
-            installer\Output\pdf2md.wixobj `
-            installer\Output\gui_files.wixobj `
-            installer\Output\dragdrop_files.wixobj
+          $v = "${{ steps.version.outputs.VERSION }}"
+          Rename-Item `
+            "pdf2md\installer\Output\PDF2MD_Setup.exe" `
+            "pdf2md\installer\Output\PDF2MD_$v_Setup.exe"
 
       # ── Upload als artifact ───────────────────────────────────────────────────
-      - name: Upload MSI artifact
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: PDF2MD-MSI-${{ steps.version.outputs.VERSION }}
-          path: pdf2md/installer/Output/*.msi
+          name: PDF2MD-Setup-${{ steps.version.outputs.VERSION }}
+          path: pdf2md/installer/Output/*.exe
           retention-days: 30
 
       # ── GitHub Release (alleen bij versie-tag) ────────────────────────────────
@@ -153,15 +117,14 @@ jobs:
             ## PDF2MD v${{ steps.version.outputs.VERSION }}
 
             ### Installatie
-            1. Download `PDF2MD_${{ steps.version.outputs.VERSION }}.msi`
-            2. Installeer Tesseract-OCR (optioneel, voor gescande PDF's):
-               https://github.com/UB-Mannheim/tesseract/wiki
-               → selecteer talen **nld** + **eng**
-            3. Dubbelklik op de MSI en volg de wizard
+            1. Download `PDF2MD_${{ steps.version.outputs.VERSION }}_Setup.exe`
+            2. Dubbelklik en volg de installatiewizard
+            3. Optioneel: installeer Tesseract-OCR voor gescande PDF's:
+               https://github.com/UB-Mannheim/tesseract/wiki → talen **nld** + **eng**
 
             ### Wat is er inbegrepen?
             - PDF2MD GUI (bureaubladsnelkoppeling)
             - PDF2MD DragDrop (rechtsklik op map → "Converteer naar Markdown")
-          files: pdf2md/installer/Output/*.msi
+          files: pdf2md/installer/Output/*.exe
           draft: false
-          prerelease: ${{ contains(steps.version.outputs.VERSION, 'dev') }}
+          prerelease: false
