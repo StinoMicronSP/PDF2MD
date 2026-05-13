@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PDF2MD MSI installer — WiX Toolset v3
+  UpgradeCode is fixed; wijzig dit NIET tussen versies (anders werkt upgrade niet).
+  ProductCode wordt bij elke major release gewijzigd.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+
+  <Product Id="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+           Name="PDF2MD"
+           Language="1043"
+           Version="1.0.0"
+           Manufacturer="PDF2MD"
+           UpgradeCode="{DEADBEEF-CAFE-BABE-FEED-C0FFEE123456}">
+
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Description="PDF naar Markdown converter"
+             Comments="Converteert PDF-bestanden naar Markdown met OCR-fallback" />
+
+    <!-- Eén embedded CAB-bestand -->
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Verwijder oudere versies automatisch bij upgrade -->
+    <MajorUpgrade DowngradeErrorMessage="Er is al een nieuwere versie van PDF2MD geïnstalleerd." />
+
+    <!-- ============================================================
+         Mapstructuur
+    ============================================================ -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="PDF2MD">
+          <Directory Id="GUI_FOLDER"      Name="PDF2MD_GUI" />
+          <Directory Id="DRAGDROP_FOLDER" Name="PDF2MD_DragDrop" />
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="PDF2MD" />
+      </Directory>
+      <Directory Id="DesktopFolder" Name="Desktop" />
+    </Directory>
+
+    <!-- ============================================================
+         Component: snelkoppelingen
+    ============================================================ -->
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcuts" Guid="{11111111-1111-1111-1111-111111111111}">
+        <Shortcut Id="StartMenuGUI"
+                  Name="PDF2MD (GUI)"
+                  Description="Converteer PDF's naar Markdown"
+                  Target="[GUI_FOLDER]PDF2MD_GUI.exe"
+                  WorkingDirectory="GUI_FOLDER" />
+        <Shortcut Id="StartMenuUninstall"
+                  Name="PDF2MD verwijderen"
+                  Target="[SystemFolder]msiexec.exe"
+                  Arguments="/x [ProductCode]" />
+        <RemoveFolder Id="CleanupStartMenu"
+                      Directory="ApplicationProgramsFolder"
+                      On="uninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\PDF2MD"
+                       Name="StartMenuInstalled"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="{22222222-2222-2222-2222-222222222222}">
+        <Shortcut Id="DesktopGUI"
+                  Name="PDF2MD"
+                  Description="Converteer PDF's naar Markdown"
+                  Target="[GUI_FOLDER]PDF2MD_GUI.exe"
+                  WorkingDirectory="GUI_FOLDER" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\PDF2MD"
+                       Name="DesktopInstalled"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- ============================================================
+         Component: rechtsklik-contextmenu (HKCR — vereist perMachine)
+    ============================================================ -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="ContextMenuRegistry" Guid="{33333333-3333-3333-3333-333333333333}">
+        <RegistryKey Root="HKCR" Key="Directory\shell\PDF2MD">
+          <RegistryValue Type="string" Name="" Value="Converteer naar Markdown" />
+        </RegistryKey>
+        <RegistryKey Root="HKCR" Key="Directory\shell\PDF2MD\command">
+          <RegistryValue Type="string" Name=""
+                         Value="&quot;[DRAGDROP_FOLDER]PDF2MD_DragDrop.exe&quot; &quot;%1&quot;" />
+        </RegistryKey>
+        <!-- Opruimen bij verwijderen -->
+        <RemoveRegistryKey Root="HKCR"
+                           Key="Directory\shell\PDF2MD"
+                           Action="removeOnUninstall" />
+        <RegistryValue Root="HKCU"
+                       Key="Software\PDF2MD"
+                       Name="ContextMenuInstalled"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- ============================================================
+         Geoogste bestandsgroepen (gegenereerd door heat.exe in CI)
+         Lokaal: zie build_msi.ps1 voor de heat-commando's
+    ============================================================ -->
+    <Feature Id="ProductFeature"
+             Title="PDF2MD"
+             Description="PDF naar Markdown converter (GUI + Drag &amp; Drop)"
+             Level="1">
+      <ComponentGroupRef Id="GUI_Files" />
+      <ComponentGroupRef Id="DragDrop_Files" />
+      <ComponentRef Id="ApplicationShortcuts" />
+      <ComponentRef Id="DesktopShortcut" />
+      <ComponentRef Id="ContextMenuRegistry" />
+    </Feature>
+
+  </Product>
+</Wix>
