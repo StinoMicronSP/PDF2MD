@@ -1,0 +1,163 @@
+name: Build & Release MSI
+
+on:
+  push:
+    tags:
+      - "v*.*.*"        # Trigger op versie-tags zoals v1.0.0
+  workflow_dispatch:    # Handmatig starten vanuit GitHub UI
+    inputs:
+      version:
+        description: "Versienummer (bijv. 1.0.0)"
+        required: false
+        default: "dev"
+
+jobs:
+  build:
+    name: Build Windows MSI
+    runs-on: windows-latest
+
+    steps:
+      # ── Checkout ─────────────────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Python ───────────────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pdf2md/requirements.txt
+
+      - name: Install Python dependencies
+        working-directory: pdf2md
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # ── Tesseract (optioneel; OCR-fallback) ──────────────────────────────────
+      - name: Install Tesseract-OCR
+        run: |
+          choco install tesseract --params="/Languages:nld" -y
+        continue-on-error: true   # Niet fataal als Tesseract mislukt
+
+      # ── PyInstaller: GUI ──────────────────────────────────────────────────────
+      - name: Build PDF2MD_GUI
+        working-directory: pdf2md
+        run: |
+          pyinstaller --onedir --noconsole --name PDF2MD_GUI `
+            --hidden-import fitz --hidden-import fitz.fitz `
+            --collect-all fitz `
+            apps/main_gui.py
+
+      # ── PyInstaller: DragDrop ─────────────────────────────────────────────────
+      - name: Build PDF2MD_DragDrop
+        working-directory: pdf2md
+        run: |
+          pyinstaller --onedir --noconsole --name PDF2MD_DragDrop `
+            --hidden-import fitz --hidden-import fitz.fitz `
+            --collect-all fitz `
+            apps/dragdrop.py
+
+      # ── WiX Toolset v3 ────────────────────────────────────────────────────────
+      - name: Install WiX Toolset v3
+        run: choco install wixtoolset -y
+
+      - name: Add WiX to PATH
+        run: echo "C:\Program Files (x86)\WiX Toolset v3.11\bin" >> $env:GITHUB_PATH
+
+      # ── Bepaal versienummer ───────────────────────────────────────────────────
+      - name: Set version
+        id: version
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $v = "${{ github.ref_name }}" -replace "^v", ""
+          } else {
+            $v = "${{ github.event.inputs.version }}"
+            if (-not $v) { $v = "0.0.0-dev" }
+          }
+          echo "VERSION=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $v"
+
+      # ── heat.exe: oogst bestanden ─────────────────────────────────────────────
+      - name: Heat GUI files
+        working-directory: pdf2md
+        run: |
+          heat.exe dir "dist\PDF2MD_GUI" `
+            -cg GUI_Files -gg -gl -gd -sfrag -srd `
+            -dr GUI_FOLDER -var var.GuiDir `
+            -out "installer\gui_files.wxs"
+
+      - name: Heat DragDrop files
+        working-directory: pdf2md
+        run: |
+          heat.exe dir "dist\PDF2MD_DragDrop" `
+            -cg DragDrop_Files -gg -gl -gd -sfrag -srd `
+            -dr DRAGDROP_FOLDER -var var.DragDropDir `
+            -out "installer\dragdrop_files.wxs"
+
+      # ── Patch versienummer in .wxs ────────────────────────────────────────────
+      - name: Patch version in pdf2md.wxs
+        working-directory: pdf2md/installer
+        run: |
+          $v = "${{ steps.version.outputs.VERSION }}"
+          (Get-Content pdf2md.wxs) -replace 'Version="1\.0\.0"', "Version=`"$v`"" |
+            Set-Content pdf2md.wxs
+
+      # ── candle.exe ────────────────────────────────────────────────────────────
+      - name: Candle (compile wxs → wixobj)
+        working-directory: pdf2md
+        run: |
+          New-Item -ItemType Directory -Force installer\Output | Out-Null
+          candle.exe -arch x64 `
+            "-dGuiDir=dist\PDF2MD_GUI" `
+            "-dDragDropDir=dist\PDF2MD_DragDrop" `
+            -out "installer\Output\" `
+            installer\pdf2md.wxs `
+            installer\gui_files.wxs `
+            installer\dragdrop_files.wxs
+
+      # ── light.exe ─────────────────────────────────────────────────────────────
+      - name: Light (link → MSI)
+        working-directory: pdf2md
+        run: |
+          light.exe `
+            -ext WixUIExtension `
+            -ext WixUtilExtension `
+            -cultures:nl-NL `
+            -out "installer\Output\PDF2MD_${{ steps.version.outputs.VERSION }}.msi" `
+            installer\Output\pdf2md.wixobj `
+            installer\Output\gui_files.wixobj `
+            installer\Output\dragdrop_files.wixobj
+
+      # ── Upload als artifact ───────────────────────────────────────────────────
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDF2MD-MSI-${{ steps.version.outputs.VERSION }}
+          path: pdf2md/installer/Output/*.msi
+          retention-days: 30
+
+      # ── GitHub Release (alleen bij versie-tag) ────────────────────────────────
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "PDF2MD v${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## PDF2MD v${{ steps.version.outputs.VERSION }}
+
+            ### Installatie
+            1. Download `PDF2MD_${{ steps.version.outputs.VERSION }}.msi`
+            2. Installeer Tesseract-OCR (optioneel, voor gescande PDF's):
+               https://github.com/UB-Mannheim/tesseract/wiki
+               → selecteer talen **nld** + **eng**
+            3. Dubbelklik op de MSI en volg de wizard
+
+            ### Wat is er inbegrepen?
+            - PDF2MD GUI (bureaubladsnelkoppeling)
+            - PDF2MD DragDrop (rechtsklik op map → "Converteer naar Markdown")
+          files: pdf2md/installer/Output/*.msi
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, 'dev') }}
