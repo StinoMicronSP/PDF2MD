@@ -19,10 +19,10 @@ Name: desktopicon; Description: "Bureaubladpictogram aanmaken"; GroupDescription
 
 [Files]
 ; GUI applicatie (alle bestanden inclusief DLL's van PyInstaller)
-Source: "dist\PDF2MD_GUI\*"; DestDir: "{app}\PDF2MD_GUI"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\dist\PDF2MD_GUI\*"; DestDir: "{app}\PDF2MD_GUI"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 ; DragDrop applicatie
-Source: "dist\PDF2MD_DragDrop\*"; DestDir: "{app}\PDF2MD_DragDrop"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\dist\PDF2MD_DragDrop\*"; DestDir: "{app}\PDF2MD_DragDrop"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\PDF2MD (GUI)"; Filename: "{app}\PDF2MD_GUI\PDF2MD_GUI.exe"
