@@ -100,7 +100,7 @@ jobs:
           $v = "${{ steps.version.outputs.VERSION }}"
           Rename-Item `
             "pdf2md\installer\Output\PDF2MD_Setup.exe" `
-            "pdf2md\installer\Output\PDF2MD_$v_Setup.exe"
+            "PDF2MD_${v}_Setup.exe"
 
       # ── Upload als artifact ───────────────────────────────────────────────────
       - name: Upload installer artifact
