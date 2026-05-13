@@ -19,11 +19,11 @@ jobs:
     steps:
       # ── Checkout ─────────────────────────────────────────────────────────────
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       # ── Python ───────────────────────────────────────────────────────────────
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: "3.11"
           cache: "pip"
@@ -137,7 +137,7 @@ jobs:
 
       # ── Upload als artifact ───────────────────────────────────────────────────
       - name: Upload MSI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: PDF2MD-MSI-${{ steps.version.outputs.VERSION }}
           path: pdf2md/installer/Output/*.msi
