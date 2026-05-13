@@ -12,7 +12,7 @@ on:
         default: "1.0.0"
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build:
@@ -111,7 +111,7 @@ jobs:
       # ── GitHub Release (alleen bij versie-tag) ────────────────────────────────
       - name: Create GitHub Release
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2.3.2
+        uses: softprops/action-gh-release@v2.2.2
         with:
           name: "PDF2MD v${{ steps.version.outputs.VERSION }}"
           body: |
