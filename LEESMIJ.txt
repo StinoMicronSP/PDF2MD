@@ -1,0 +1,34 @@
+PDF2MD - PDF naar Markdown converter
+=====================================
+
+INSTALLATIE (eenmalig)
+-----------------------
+1. Pak de ZIP uit naar een map naar keuze
+2. Dubbelklik op: installeren.bat
+3. Wacht tot de installatie klaar is
+
+GEBRUIK
+-------
+Dubbelklik op: starten.bat
+
+Het programma opent. Daarna:
+  1. Klik "Bladeren" naast Bronmap → kies de map met je PDF's
+  2. Klik "Starten"
+  3. De Markdown-bestanden staan in de map <bronmap>_MD
+
+VEREISTEN
+---------
+- Windows 10 of nieuwer
+- Python 3.11+ (gratis via https://www.python.org/downloads/)
+  Let op: vink "Add Python to PATH" aan tijdens installatie!
+
+OPTIONEEL: Tesseract-OCR
+------------------------
+Alleen nodig als je gescande PDF's (foto's van papier) wilt verwerken.
+Download: https://github.com/UB-Mannheim/tesseract/wiki
+Selecteer tijdens installatie de talen: nld + eng
+
+PROBLEMEN?
+----------
+- "Python niet gevonden": installeer Python opnieuw met "Add to PATH" aangevinkt
+- "Module not found": voer installeren.bat opnieuw uit
