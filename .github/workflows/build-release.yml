@@ -75,10 +75,14 @@ jobs:
             $v = "${{ github.ref_name }}" -replace "^v", ""
           } else {
             $v = "${{ github.event.inputs.version }}"
-            if (-not $v) { $v = "0.0.0-dev" }
+            if (-not $v -or $v -eq "dev") { $v = "0.0.1" }
           }
+          # WiX vereist x.x.x formaat (alleen cijfers) — strip eventuele suffix
+          $wixV = ($v -replace "-.*$", "") -replace "[^0-9.]", ""
+          if (-not ($wixV -match "^\d+\.\d+\.\d+")) { $wixV = "0.0.1" }
           echo "VERSION=$v" >> $env:GITHUB_OUTPUT
-          Write-Host "Version: $v"
+          echo "WIX_VERSION=$wixV" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $v  (WiX: $wixV)"
 
       # ── heat.exe: oogst bestanden ─────────────────────────────────────────────
       - name: Heat GUI files
@@ -101,7 +105,7 @@ jobs:
       - name: Patch version in pdf2md.wxs
         working-directory: pdf2md/installer
         run: |
-          $v = "${{ steps.version.outputs.VERSION }}"
+          $v = "${{ steps.version.outputs.WIX_VERSION }}"
           (Get-Content pdf2md.wxs) -replace 'Version="1\.0\.0"', "Version=`"$v`"" |
             Set-Content pdf2md.wxs
 
@@ -126,7 +130,7 @@ jobs:
             -ext WixUIExtension `
             -ext WixUtilExtension `
             -cultures:nl-NL `
-            -out "installer\Output\PDF2MD_${{ steps.version.outputs.VERSION }}.msi" `
+            -out "installer\Output\PDF2MD_${{ steps.version.outputs.WIX_VERSION }}.msi" `
             installer\Output\pdf2md.wixobj `
             installer\Output\gui_files.wixobj `
             installer\Output\dragdrop_files.wixobj
