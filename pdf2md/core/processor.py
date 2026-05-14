@@ -56,8 +56,17 @@ def convert_pdf(
     # Extract text/images
     full_text, image_files = process_pdf(pdf_path, output_dir, ocr_func=ocr_page)
 
-    # Apply line-by-line Markdown heuristics (headings, bullets)
-    formatted_lines = [format_line(line) for line in full_text.splitlines()]
+    # Apply line-by-line Markdown heuristics, but skip separator lines that
+    # process_pdf already inserted ("---" and "*Pagina N*") so they are not
+    # misidentified as bullet points by format_line.
+    _page_label = re.compile(r"^\*Pagina \d+\*$")
+    formatted_lines = []
+    for line in full_text.splitlines():
+        stripped = line.strip()
+        if stripped == "---" or _page_label.match(stripped):
+            formatted_lines.append(stripped)
+        else:
+            formatted_lines.append(format_line(line))
     markdown_content = "\n".join(formatted_lines)
 
     ocr_used = _detect_ocr_used(pdf_path)
