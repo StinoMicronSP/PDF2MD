@@ -1,113 +1,115 @@
-"""PDF text and image extraction using PyMuPDF (fitz)."""
+"""
+pdf_utils.py — PDF tekst- en afbeeldingsextractie via PyMuPDF (fitz)
 
-import logging
-from pathlib import Path
-from typing import Optional
+BUGFIX t.o.v. originele versie:
+  De drempelconditie (if len(text) < 200) blokkeerde afbeeldingsextractie
+  op alle pagina's met voldoende tekst — zoals onderhoudschecklist-PDF's.
+  Afbeeldingen worden nu ALTIJD geëxtraheerd, ongeacht tekstlengte.
+"""
 
 import fitz  # PyMuPDF
-
-from .ocr import ocr_page
+from pathlib import Path
+import logging
 
 logger = logging.getLogger(__name__)
 
-# Thresholds
-_OCR_THRESHOLD = 100   # chars per page below which OCR is triggered
-_IMG_THRESHOLD = 200   # chars per page below which images are extracted
+
+def extract_page_text(page: fitz.Page) -> str:
+    """Extraheer tekstinhoud van een enkele PDF-pagina."""
+    return page.get_text("text").strip()
 
 
-def extract_pages(
+def extract_images_from_page(
+    page: fitz.Page,
+    doc: fitz.Document,
+    output_dir: Path,
+    pdf_stem: str,
+    page_num: int,
+) -> list[str]:
+    """
+    Extraheer alle embedded afbeeldingen van een pagina.
+
+    Args:
+        page:       fitz.Page object
+        doc:        het volledige fitz.Document (nodig voor xref lookup)
+        output_dir: map waar afbeeldingen naast het .md-bestand komen
+        pdf_stem:   bestandsnaam van de PDF zonder extensie
+        page_num:   paginanummer (1-gebaseerd) voor bestandsnaming
+
+    Returns:
+        Lijst van relatieve bestandsnamen (voor Markdown-referenties)
+    """
+    saved_images = []
+    images = page.get_images(full=True)
+
+    if not images:
+        return saved_images
+
+    for idx, img_info in enumerate(images):
+        xref = img_info[0]
+
+        try:
+            base_image = doc.extract_image(xref)
+            image_bytes = base_image["image"]
+            image_ext = base_image["ext"]  # bijv. "jpeg", "png"
+
+            # Sla op als PNG wanneer ext onbekend of problematisch is
+            if image_ext not in ("jpeg", "jpg", "png", "webp"):
+                image_ext = "png"
+
+            filename = f"{pdf_stem}_img_{page_num}_{idx}.{image_ext}"
+            output_path = output_dir / filename
+
+            output_path.write_bytes(image_bytes)
+            saved_images.append(filename)
+            logger.debug(f"Afbeelding opgeslagen: {output_path}")
+
+        except Exception as e:
+            logger.warning(f"Afbeelding {xref} op pagina {page_num} overgeslagen: {e}")
+            continue
+
+    return saved_images
+
+
+def process_pdf(
     pdf_path: Path,
     output_dir: Path,
-    stem: str,
-) -> tuple[list[str], list[str]]:
-    """Extract text and images from all pages of a PDF.
-
-    For each page:
-    - If extracted text is shorter than ``_OCR_THRESHOLD`` chars, the page is
-      processed through the Tesseract OCR fallback.
-    - If the page has fewer than ``_IMG_THRESHOLD`` chars of text, embedded
-      images are saved next to the output .md file and Markdown image references
-      are appended to the page text.
+    ocr_func=None,
+) -> tuple[str, list[str]]:
+    """
+    Verwerk een PDF-bestand: extraheer tekst + afbeeldingen van alle pagina's.
 
     Args:
-        pdf_path: Path to the source PDF file.
-        output_dir: Directory where image files will be saved.
-        stem: Sanitised base name (without extension) used for image filenames.
+        pdf_path:   pad naar het PDF-bestand
+        output_dir: map voor afbeeldingsoutput
+        ocr_func:   optionele OCR-functie (wordt aangeroepen als tekst < 100 tekens/pagina)
 
     Returns:
-        A tuple of:
-        - ``pages``: list of per-page text strings (possibly augmented with
-          Markdown image references).
-        - ``image_files``: list of saved image file paths (as strings).
+        Tuple van (volledige tekst als string, lijst van afbeeldingsbestandsnamen)
     """
-    pages: list[str] = []
-    image_files: list[str] = []
-    ocr_used = False
-
     doc = fitz.open(str(pdf_path))
-    try:
-        for page_num, page in enumerate(doc):
-            text: str = page.get_text("text")
+    pdf_stem = pdf_path.stem
+    all_text_parts = []
+    all_images = []
 
-            if len(text.strip()) < _OCR_THRESHOLD:
-                logger.debug(
-                    "Page %d of '%s' has <100 chars — using OCR", page_num + 1, pdf_path.name
-                )
-                ocr_text = ocr_page(page)
-                if ocr_text.strip():
-                    text = ocr_text
-                    ocr_used = True
+    for page_num, page in enumerate(doc, start=1):
+        text = extract_page_text(page)
 
-            # Image extraction for low-text pages
-            if len(text.strip()) < _IMG_THRESHOLD:
-                img_refs = _extract_images(doc, page, page_num, output_dir, stem)
-                image_files.extend(img_refs)
-                if img_refs:
-                    md_refs = "\n".join(
-                        f"![afbeelding]({Path(p).name})" for p in img_refs
-                    )
-                    text = f"{text}\n{md_refs}"
+        # OCR-fallback: alleen bij echt weinig tekst (gescande pagina's)
+        if len(text) < 100 and ocr_func is not None:
+            logger.info(f"Pagina {page_num}: OCR-fallback (tekst={len(text)} tekens)")
+            text = ocr_func(page) or text
 
-            pages.append(text)
-    finally:
-        doc.close()
+        # Paginascheiding in Markdown
+        all_text_parts.append(f"---\n*Pagina {page_num}*\n\n{text}")
 
-    return pages, image_files
+        # ✅ BUGFIX: altijd afbeeldingen extraheren, geen drempelconditie
+        # Reden: checklist-PDF's bevatten zowel tekst ALS ingebedde foto's
+        page_images = extract_images_from_page(
+            page, doc, output_dir, pdf_stem, page_num
+        )
+        all_images.extend(page_images)
 
-
-def _extract_images(
-    doc: fitz.Document,
-    page: fitz.Page,
-    page_num: int,
-    output_dir: Path,
-    stem: str,
-) -> list[str]:
-    """Extract and save all embedded images from a single page.
-
-    Args:
-        doc: The open fitz.Document.
-        page: The page to extract images from.
-        page_num: Zero-based page index (used for filename labelling).
-        output_dir: Directory to write PNG files into.
-        stem: Sanitised file stem used as part of the image filename.
-
-    Returns:
-        List of saved image file paths as strings.
-    """
-    saved: list[str] = []
-    for img_index, img_info in enumerate(page.get_images(full=True)):
-        xref = img_info[0]
-        try:
-            base_img = doc.extract_image(xref)
-            img_bytes = base_img["image"]
-            img_ext = base_img.get("ext", "png")
-            img_filename = f"{stem}_img_{page_num + 1}_{img_index}.{img_ext}"
-            img_path = output_dir / img_filename
-            img_path.write_bytes(img_bytes)
-            saved.append(str(img_path))
-            logger.debug("Saved image: %s", img_path)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "Could not extract image xref=%d from page %d: %s", xref, page_num + 1, exc
-            )
-    return saved
+    doc.close()
+    full_text = "\n\n".join(all_text_parts)
+    return full_text, all_images

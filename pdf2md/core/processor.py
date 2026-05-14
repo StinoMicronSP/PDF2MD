@@ -7,8 +7,9 @@ from typing import Callable, Optional
 
 from .fuzzy import check_existing
 from .logger import ConversionLogger, LogEntry
-from .markdown import build_markdown
-from .pdf_utils import extract_pages
+from .markdown import format_line
+from .ocr import ocr_page
+from .pdf_utils import process_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +54,13 @@ def convert_pdf(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Extract text/images
-    pages, image_files = extract_pages(pdf_path, output_dir, clean_stem)
+    full_text, image_files = process_pdf(pdf_path, output_dir, ocr_func=ocr_page)
 
-    # Detect OCR usage heuristically: if any page text looks like OCR output the
-    # extractor already handled it; we track via returned text length patterns.
-    ocr_used = _detect_ocr_used(pdf_path, pages)
+    # Apply line-by-line Markdown heuristics (headings, bullets)
+    formatted_lines = [format_line(line) for line in full_text.splitlines()]
+    markdown_content = "\n".join(formatted_lines)
 
-    markdown_content = build_markdown(pages)
+    ocr_used = _detect_ocr_used(pdf_path)
 
     # Fuzzy duplicate check before writing
     fuzzy_match, similarity_score = check_existing(output_md_path, output_root)
@@ -83,16 +84,11 @@ def convert_pdf(
     return status, image_files, fuzzy_match, similarity_score
 
 
-def _detect_ocr_used(pdf_path: Path, pages: list[str]) -> bool:
-    """Heuristic: consider OCR used when the majority of pages are short.
-
-    Reads the raw PDF again briefly to check whether extracted text was sparse
-    enough to trigger the OCR path.  This avoids threading state into the
-    return value of extract_pages.
+def _detect_ocr_used(pdf_path: Path) -> bool:
+    """Heuristic: consider OCR used when any page has fewer than 100 raw chars.
 
     Args:
-        pdf_path: Path to the PDF (used for per-page raw length check).
-        pages: The page texts as returned by extract_pages.
+        pdf_path: Path to the PDF.
 
     Returns:
         True if OCR was likely used for at least one page.
