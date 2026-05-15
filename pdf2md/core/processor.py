@@ -13,6 +13,8 @@ from .pdf_utils import process_pdf
 
 logger = logging.getLogger(__name__)
 
+_PAGE_LABEL = re.compile(r"^\*Pagina \d+\*$")
+
 
 def sanitize(name: str) -> str:
     """Replace non-word characters (except hyphens) with underscores.
@@ -59,11 +61,10 @@ def convert_pdf(
     # Apply line-by-line Markdown heuristics, but skip separator lines that
     # process_pdf already inserted ("---" and "*Pagina N*") so they are not
     # misidentified as bullet points by format_line.
-    _page_label = re.compile(r"^\*Pagina \d+\*$")
     formatted_lines = []
     for line in full_text.splitlines():
         stripped = line.strip()
-        if stripped == "---" or _page_label.match(stripped):
+        if stripped == "---" or _PAGE_LABEL.match(stripped):
             formatted_lines.append(stripped)
         else:
             formatted_lines.append(format_line(line))
@@ -108,7 +109,7 @@ def _detect_ocr_used(pdf_path: Path) -> bool:
         doc = fitz.open(str(pdf_path))
         ocr_triggered = False
         try:
-            for i, page in enumerate(doc):
+            for _, page in enumerate(doc):
                 raw = page.get_text("text")
                 if len(raw.strip()) < 100:
                     ocr_triggered = True

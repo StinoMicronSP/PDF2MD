@@ -8,6 +8,7 @@ BUGFIX t.o.v. originele versie:
 """
 
 import fitz  # PyMuPDF
+import re
 from pathlib import Path
 import logging
 
@@ -88,7 +89,7 @@ def process_pdf(
         Tuple van (volledige tekst als string, lijst van afbeeldingsbestandsnamen)
     """
     doc = fitz.open(str(pdf_path))
-    pdf_stem = pdf_path.stem
+    pdf_stem = re.sub(r"[^\w\-]", "_", pdf_path.stem)
     all_text_parts = []
     all_images = []
 
