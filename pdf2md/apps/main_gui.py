@@ -1,10 +1,13 @@
-"""Tkinter GUI for the PDF2MD converter."""
+"""Tkinter GUI for the PDF2MD converter with drag-and-drop support."""
 
 import logging
+import re
 import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+
+from tkinterdnd2 import DND_FILES, TkinterDnD
 
 from core.processor import process_directory
 
@@ -16,14 +19,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class PDF2MDApp(tk.Tk):
+class PDF2MDApp(TkinterDnD.Tk):
     """Main application window for the PDF2MD converter."""
 
     def __init__(self) -> None:
         """Initialise the window, layout, and widget state."""
         super().__init__()
         self.title("PDF2MD Converter")
-        self.geometry("520x280")
+        self.geometry("520x380")
         self.resizable(False, False)
 
         self._build_ui()
@@ -78,9 +81,92 @@ class PDF2MDApp(tk.Tk):
             row=4, column=0, columnspan=3, padx=10, sticky="w"
         )
 
+        # Drop zone
+        self._build_dropzone(row=5)
+
+    def _build_dropzone(self, row: int) -> None:
+        """Create a drag-and-drop zone and register it as a DnD target.
+
+        Accepts a folder or one or more PDF files. On drop, the source field
+        is filled and the destination field is set automatically.
+
+        Args:
+            row: The grid row in which to place the drop zone frame.
+        """
+        frame = tk.LabelFrame(
+            self,
+            text="Of sleep hier een map of PDF-bestanden naartoe",
+            padx=10,
+            pady=8,
+            relief="dashed",
+            bd=2,
+            fg="gray",
+        )
+        frame.grid(row=row, column=0, columnspan=3, padx=10, pady=(4, 10), sticky="ew")
+
+        self._drop_label = tk.Label(
+            frame,
+            text="📂  Sleep een map of meerdere PDF's hier naartoe",
+            fg="gray",
+            pady=12,
+        )
+        self._drop_label.pack(fill="x")
+
+        # Hover feedback
+        def on_enter(event: tk.Event) -> None:
+            frame.config(fg="blue", bd=3)
+
+        def on_leave(event: tk.Event) -> None:
+            frame.config(fg="gray", bd=2)
+
+        # Drop handler
+        def handle_drop(event: tk.Event) -> None:
+            raw = event.data.strip()
+            # Windows wraps paths that contain spaces in curly braces
+            parts = re.findall(r"\{[^}]+\}|\S+", raw)
+            paths = [Path(p.strip("{}")) for p in parts]
+            resolved = [p for p in paths if p.exists()]
+
+            if not resolved:
+                messagebox.showwarning(
+                    "Ongeldig pad", "Geen geldig bestand of map herkend."
+                )
+                return
+
+            dirs = [p for p in resolved if p.is_dir()]
+            if dirs:
+                self._on_folder_dropped(dirs[0])
+                return
+
+            pdfs = [p for p in resolved if p.suffix.lower() == ".pdf"]
+            if pdfs:
+                self._on_folder_dropped(pdfs[0].parent)
+                return
+
+            messagebox.showwarning(
+                "Niet ondersteund",
+                "Sleep een map of één of meerdere PDF-bestanden.",
+            )
+
+        for widget in (frame, self._drop_label):
+            widget.drop_target_register(DND_FILES)
+            widget.dnd_bind("<<Drop>>", handle_drop)
+            widget.dnd_bind("<<DragEnter>>", on_enter)
+            widget.dnd_bind("<<DragLeave>>", on_leave)
+
     # ------------------------------------------------------------------
     # Event handlers
     # ------------------------------------------------------------------
+
+    def _on_folder_dropped(self, folder: Path) -> None:
+        """Fill source and destination fields when a folder is dropped.
+
+        Args:
+            folder: The resolved source directory path.
+        """
+        self._src_var.set(str(folder))
+        self._dst_var.set(str(folder.parent / (folder.name + "_MD")))
+        self._status_var.set(f"Map gesleept: {folder.name}  — klik Starten om te beginnen.")
 
     def _browse_source(self) -> None:
         """Open a directory chooser and populate the source field."""
@@ -147,7 +233,9 @@ class PDF2MDApp(tk.Tk):
         """Re-enable the UI and display the completion summary."""
         self._start_btn.config(state="normal")
         self._progress["value"] = self._progress["maximum"]
-        self._status_var.set(f"Gereed: {success} bestand(en) verwerkt, {errors} fout(en).")
+        self._status_var.set(
+            f"Gereed: {success} bestand(en) verwerkt, {errors} fout(en)."
+        )
         messagebox.showinfo(
             "Conversie voltooid",
             f"{success} bestand(en) verwerkt\n{errors} fout(en)",

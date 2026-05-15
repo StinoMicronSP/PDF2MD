@@ -5,26 +5,26 @@
 - Python 3.11+
 - `pip install -r requirements.txt`
 - PyInstaller: `pip install pyinstaller`
-- **WiX Toolset v3.11+** (voor MSI): https://wixtoolset.org/releases/
-- Tesseract-OCR (Windows): https://github.com/UB-Mannheim/tesseract/wiki
+- **Inno Setup 6**: https://jrsoftware.org/isinfo.php
+- Tesseract-OCR (optioneel, voor gescande PDF's): https://github.com/UB-Mannheim/tesseract/wiki
   — installeer met talen `nld` (Nederlands) en `eng` (Engels)
 
 ---
 
 ## Optie A: Automatisch via GitHub Actions (aanbevolen)
 
-Push een versie-tag en GitHub bouwt de MSI automatisch:
+Push een versie-tag en GitHub bouwt de installer automatisch:
 
 ```bat
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-De MSI verschijnt als:
-- **Release-artifact** onder *Actions → Build & Release MSI → Artifacts*
+De installer verschijnt als:
+- **Release-artifact** onder *Actions → Build & Release Installer → Artifacts*
 - **GitHub Release** op de Releases-pagina (downloadbaar voor eindgebruikers)
 
-Je kunt ook handmatig starten via *Actions → Build & Release MSI → Run workflow*.
+Je kunt ook handmatig starten via *Actions → Build & Release Installer → Run workflow*.
 
 ---
 
@@ -32,12 +32,14 @@ Je kunt ook handmatig starten via *Actions → Build & Release MSI → Run workf
 
 ### Stap 1 — PyInstaller (vanuit de `pdf2md/` map)
 
-**GUI-applicatie**
+**GUI-applicatie** (inclusief tkinterdnd2 voor drag & drop)
 
 ```bat
 pyinstaller --onedir --noconsole --name PDF2MD_GUI ^
   --hidden-import fitz --hidden-import fitz.fitz ^
+  --hidden-import tkinterdnd2 ^
   --collect-all fitz ^
+  --collect-all tkinterdnd2 ^
   apps/main_gui.py
 ```
 
@@ -52,50 +54,19 @@ pyinstaller --onedir --noconsole --name PDF2MD_DragDrop ^
 
 Na afloop staan `dist\PDF2MD_GUI\` en `dist\PDF2MD_DragDrop\` klaar.
 
-### Stap 2 — MSI bouwen (PowerShell-script)
-
-```powershell
-cd pdf2md
-.\installer\build_msi.ps1
-```
-
-Het script voert automatisch `heat.exe → candle.exe → light.exe` uit.
-
-De MSI verschijnt in: `installer\Output\PDF2MD.msi`
-
-### Stap 2 (alternatief) — Handmatig met WiX-commando's
+### Stap 2 — Installer bouwen
 
 ```bat
-:: heat: bestandsoogst
-heat.exe dir dist\PDF2MD_GUI ^
-  -cg GUI_Files -gg -gl -gd -sfrag -srd ^
-  -dr GUI_FOLDER -var var.GuiDir ^
-  -out installer\gui_files.wxs
-
-heat.exe dir dist\PDF2MD_DragDrop ^
-  -cg DragDrop_Files -gg -gl -gd -sfrag -srd ^
-  -dr DRAGDROP_FOLDER -var var.DragDropDir ^
-  -out installer\dragdrop_files.wxs
-
-:: candle: compileren
-candle.exe -arch x64 ^
-  -dGuiDir=dist\PDF2MD_GUI ^
-  -dDragDropDir=dist\PDF2MD_DragDrop ^
-  -out installer\Output\ ^
-  installer\pdf2md.wxs ^
-  installer\gui_files.wxs ^
-  installer\dragdrop_files.wxs
-
-:: light: linken naar MSI
-light.exe ^
-  -ext WixUIExtension ^
-  -ext WixUtilExtension ^
-  -cultures:nl-NL ^
-  -out installer\Output\PDF2MD.msi ^
-  installer\Output\pdf2md.wixobj ^
-  installer\Output\gui_files.wixobj ^
-  installer\Output\dragdrop_files.wixobj
+installer\build_local.bat
 ```
+
+Of rechtstreeks:
+
+```bat
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\setup.iss
+```
+
+Resultaat: `installer\Output\PDF2MD_Setup.exe`
 
 ---
 
@@ -107,25 +78,21 @@ pdf2md/
 │   ├── PDF2MD_GUI/
 │   └── PDF2MD_DragDrop/
 └── installer/
-    ├── gui_files.wxs        ← gegenereerd door heat.exe
-    ├── dragdrop_files.wxs   ← gegenereerd door heat.exe
     └── Output/
-        └── PDF2MD.msi       ← eindresultaat
+        └── PDF2MD_Setup.exe
 ```
 
 ---
 
 ## Nieuwe versie uitbrengen
 
-1. Pas `Version="x.y.z"` aan in `installer/pdf2md.wxs`
-2. Commit en tag:
-   ```bat
-   git add installer/pdf2md.wxs
-   git commit -m "Bump version to x.y.z"
-   git tag vx.y.z
-   git push origin main --tags
-   ```
-3. GitHub Actions bouwt de MSI automatisch en maakt een Release aan.
+```bat
+git commit -m "Bump version to x.y.z"
+git tag vx.y.z
+git push origin main --tags
+```
+
+GitHub Actions bouwt de installer automatisch en maakt een Release aan.
 
 ---
 
@@ -136,5 +103,5 @@ pdf2md/
   Pas `core/ocr.py` aan als het pad afwijkt.
 - De `--onedir`-modus is **vereist** voor PyMuPDF vanwege de native `.dll`-bestanden.
   De `--onefile`-modus wordt *niet* ondersteund.
-- De `UpgradeCode` in `pdf2md.wxs` mag **nooit** worden gewijzigd;
-  alleen de `ProductCode` verandert bij major releases.
+- `--collect-all tkinterdnd2` is vereist voor de GUI; de DragDrop-executable
+  gebruikt standaard Tkinter en heeft dit niet nodig.
