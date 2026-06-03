@@ -29,6 +29,12 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Pdf2md">
+        <!-- Zorgt dat het ML Kit OCR-model bij installatie wordt gedownload,
+             niet pas bij het eerste gebruik. Vereist voor offline werking. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"

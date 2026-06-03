@@ -17,6 +17,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // MuPDF fitz artifact wordt niet via Maven Central gedistribueerd
+        maven { url = uri("https://maven.ghostscript.com/") }
     }
 }
 

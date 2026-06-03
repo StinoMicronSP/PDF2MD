@@ -48,8 +48,8 @@ object ImageExtractor {
         val savedImages = mutableListOf<File>()
 
         try {
-            // findPage() verwacht een 0-gebaseerde index
-            val pageObj = pdfDoc.findPage(pageNum - 1)
+            // findPage() verwacht een 0-gebaseerde index; retourneert null bij ongeldige pagina
+            val pageObj = pdfDoc.findPage(pageNum - 1) ?: return savedImages
             val resources = pageObj.get("Resources")?.resolve() ?: return savedImages
             val xObjects = resources.get("XObject")?.resolve() ?: return savedImages
             val keys: Array<String> = xObjects.keys() ?: return savedImages
