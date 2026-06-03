@@ -2,8 +2,7 @@ package be.pdf2md.ocr
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
+import com.artifex.mupdf.fitz.ColorSpace
 import com.artifex.mupdf.fitz.Matrix
 import com.artifex.mupdf.fitz.Page
 import com.google.mlkit.vision.common.InputImage
@@ -45,20 +44,27 @@ object MlKitOcrProvider {
 
     private fun renderPageToBitmap(page: Page, scale: Float = 2f): Bitmap {
         val bounds = page.bounds
-        val width = (bounds.x1 * scale).toInt()
-        val height = (bounds.y1 * scale).toInt()
-
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.WHITE)
+        // Gebruik x0/y0 als offset zodat niet-nul origins correct worden behandeld
+        val width = ((bounds.x1 - bounds.x0) * scale).toInt().coerceAtLeast(1)
+        val height = ((bounds.y1 - bounds.y0) * scale).toInt().coerceAtLeast(1)
 
         val matrix = Matrix(scale, scale)
-        val pixmap = page.toPixmap(matrix, com.artifex.mupdf.fitz.ColorSpace.DeviceRGB, false)
-        val pixels = IntArray(width * height)
-        pixmap.toIntArray(pixels, 0, width, 0, 0, width, height)
-        bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+        // alpha=false → RGB (3 bytes per pixel), geen transparantie nodig voor OCR
+        val pixmap = page.toPixmap(matrix, ColorSpace.DeviceRGB, false)
+
+        // Pixmap.getSamples() geeft ruwe RGB bytes terug (3 bytes per pixel).
+        // Android Bitmap verwacht ARGB ints — handmatige conversie vereist.
+        val samples = pixmap.getSamples()
+        val intArray = IntArray(width * height) { i ->
+            val r = samples[i * 3].toInt() and 0xFF
+            val g = samples[i * 3 + 1].toInt() and 0xFF
+            val b = samples[i * 3 + 2].toInt() and 0xFF
+            (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+        }
         pixmap.destroy()
 
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        bitmap.setPixels(intArray, 0, width, 0, 0, width, height)
         return bitmap
     }
 }

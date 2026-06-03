@@ -52,8 +52,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
 
-    // MuPDF — zelfde C-engine als PyMuPDF/fitz
-    implementation(libs.mupdf.viewer)
+    // MuPDF fitz — low-level JNI bindings, zelfde C-engine als PyMuPDF/fitz
+    implementation(libs.mupdf.fitz)
+
+    // Material icons (Settings, ArrowBack)
+    implementation(libs.androidx.compose.material.icons.extended)
 
     // ML Kit OCR (offline, geen internet nodig)
     implementation(libs.mlkit.text.recognition)

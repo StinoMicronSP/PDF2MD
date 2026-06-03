@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -37,6 +38,7 @@ object MarkdownExporter {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun exportViaMediaStore(
         context: Context,
         content: String,

@@ -33,60 +33,67 @@ class PdfProcessor(private val context: Context) {
         backupImages: Boolean = false,
         onProgress: (current: Int, total: Int) -> Unit = { _, _ -> },
     ): PdfResult = withContext(Dispatchers.IO) {
-        val inputStream = context.contentResolver.openInputStream(uri)
-            ?: error("Kan het PDF bestand niet openen")
-
-        val pdfBytes = inputStream.use { it.readBytes() }
-        val doc = Document.openDocument(pdfBytes, "")
         val pdfStem = resolveFileName(uri).removeSuffix(".pdf")
 
-        val pageCount = doc.countPages()
-        val pageSections = mutableListOf<String>()
-        val allImages = mutableListOf<File>()
+        // Document.openDocument(byte[], String) bestaat niet in de fitz artifact.
+        // Schrijf naar een tijdelijk bestand zodat de native library het kan lezen.
+        val tempFile = File(context.cacheDir, "pdf_input_${System.currentTimeMillis()}.pdf")
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                tempFile.outputStream().use { output -> input.copyTo(output) }
+            } ?: error("Kan het PDF bestand niet openen: $uri")
 
-        for (pageIndex in 0 until pageCount) {
-            val pageNum = pageIndex + 1
-            val page = doc.loadPage(pageIndex)
+            val doc = Document.openDocument(tempFile.absolutePath)
+            val pageCount = doc.countPages()
+            val pageSections = mutableListOf<String>()
+            val allImages = mutableListOf<File>()
 
-            try {
-                var text = TextExtractor.extract(page)
+            for (pageIndex in 0 until pageCount) {
+                val pageNum = pageIndex + 1
+                val page = doc.loadPage(pageIndex)
 
-                // OCR fallback als tekst te kort is — zelfde drempel (100) als Python
-                if (text.length < OCR_THRESHOLD) {
-                    val ocrText = runCatching {
-                        MlKitOcrProvider.recognize(page, context)
-                    }.getOrNull()
-                    if (!ocrText.isNullOrBlank()) text = ocrText
+                try {
+                    var text = TextExtractor.extract(page)
+
+                    // OCR fallback als tekst te kort is — zelfde drempel (100) als Python
+                    if (text.length < OCR_THRESHOLD) {
+                        val ocrText = runCatching {
+                            MlKitOcrProvider.recognize(page, context)
+                        }.getOrNull()
+                        if (!ocrText.isNullOrBlank()) text = ocrText
+                    }
+
+                    // Afbeeldingen ALTIJD extraheren (BUGFIX: geen tekstdrempel hier)
+                    val pageImages = ImageExtractor.extractFromPage(
+                        page = page,
+                        doc = doc,
+                        context = context,
+                        pdfStem = pdfStem,
+                        pageNum = pageNum,
+                        backupEnabled = backupImages,
+                    )
+                    allImages.addAll(pageImages)
+
+                    pageSections.add(MarkdownFormatter.formatPage(pageNum, text, pageImages))
+                } catch (e: Exception) {
+                    if (BuildConfig.DEBUG) Log.e(TAG, "Fout op pagina $pageNum: ${e.message}")
+                    pageSections.add(MarkdownFormatter.formatPage(pageNum, "", emptyList()))
+                } finally {
+                    page.destroy()
                 }
 
-                // Afbeeldingen ALTIJD extraheren (BUGFIX: geen tekstdrempel hier)
-                val pageImages = ImageExtractor.extractFromPage(
-                    page = page,
-                    doc = doc,
-                    context = context,
-                    pdfStem = pdfStem,
-                    pageNum = pageNum,
-                    backupEnabled = backupImages,
-                )
-                allImages.addAll(pageImages)
-
-                pageSections.add(MarkdownFormatter.formatPage(pageNum, text, pageImages))
-            } catch (e: Exception) {
-                if (BuildConfig.DEBUG) Log.e(TAG, "Fout op pagina $pageNum: ${e.message}")
-                pageSections.add(MarkdownFormatter.formatPage(pageNum, "", emptyList()))
-            } finally {
-                page.destroy()
+                onProgress(pageNum, pageCount)
             }
 
-            onProgress(pageNum, pageCount)
+            doc.destroy()
+
+            PdfResult(
+                markdownText = MarkdownFormatter.combine(pageSections),
+                imageFiles = allImages,
+            )
+        } finally {
+            tempFile.delete()
         }
-
-        doc.destroy()
-
-        PdfResult(
-            markdownText = MarkdownFormatter.combine(pageSections),
-            imageFiles = allImages,
-        )
     }
 
     private fun resolveFileName(uri: Uri): String {
