@@ -1,5 +1,10 @@
 package be.pdf2md.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import be.pdf2md.R
 import be.pdf2md.domain.PdfResult
 import be.pdf2md.ui.ExportState
@@ -30,6 +36,9 @@ import be.pdf2md.ui.MainViewModel
 
 /**
  * Resultaatscherm: scrollbare Markdown preview + export- en terugknop.
+ *
+ * Op Android 8/9 (API 26–28) wordt WRITE_EXTERNAL_STORAGE gevraagd vóór
+ * de export. Op API 29+ regelt MediaStore het zonder extra permissie.
  */
 @Composable
 fun ResultScreen(
@@ -40,6 +49,27 @@ fun ResultScreen(
 ) {
     val context = LocalContext.current
     val exportState by viewModel.exportState.collectAsState()
+
+    // Permissie-launcher: wordt alleen gebruikt op API 26–28
+    val writePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            viewModel.exportMarkdown(context, result.markdownText, "pdf2md_export")
+        }
+    }
+
+    fun startExport() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            writePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            viewModel.exportMarkdown(context, result.markdownText, "pdf2md_export")
+        }
+    }
 
     Column(
         modifier = modifier
@@ -89,13 +119,7 @@ fun ResultScreen(
         }
 
         Button(
-            onClick = {
-                viewModel.exportMarkdown(
-                    context = context,
-                    markdownText = result.markdownText,
-                    filename = "pdf2md_export",
-                )
-            },
+            onClick = { startExport() },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.btn_export))
