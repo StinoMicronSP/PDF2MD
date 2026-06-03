@@ -10,6 +10,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import be.pdf2md.ui.screens.HomeScreen
 import be.pdf2md.ui.screens.ResultScreen
@@ -23,6 +24,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: MainViewModel = viewModel()
             val state by viewModel.conversionState.collectAsState()
+            val context = LocalContext.current
 
             Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                 when (val s = state) {
@@ -30,7 +32,7 @@ class MainActivity : ComponentActivity() {
                         ResultScreen(
                             viewModel = viewModel,
                             result = s.result,
-                            onNavigateBack = { viewModel.reset() },
+                            onNavigateBack = { viewModel.reset(context) },
                             modifier = Modifier.padding(innerPadding),
                         )
                     }

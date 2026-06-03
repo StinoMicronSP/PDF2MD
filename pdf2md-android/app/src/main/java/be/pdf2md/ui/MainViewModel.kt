@@ -50,21 +50,30 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /** Exporteert het Markdown resultaat naar Downloads/. */
+    /** Exporteert het Markdown resultaat naar Downloads/ en wist daarna de cache. */
     fun exportMarkdown(context: Context, markdownText: String, filename: String) {
         viewModelScope.launch {
             runCatching {
                 MarkdownExporter.export(context, markdownText, filename)
             }.fold(
-                onSuccess = { path -> _exportState.value = ExportState.Success(path) },
+                onSuccess = { path ->
+                    clearImageCache(context)
+                    _exportState.value = ExportState.Success(path)
+                },
                 onFailure = { e -> _exportState.value = ExportState.Error(e.message ?: "Export mislukt") },
             )
         }
     }
 
-    /** Zet de state terug naar [ConversionState.Idle] voor een nieuwe conversie. */
-    fun reset() {
+    /** Zet de state terug naar [ConversionState.Idle] en wist de cache. */
+    fun reset(context: Context? = null) {
+        context?.let { clearImageCache(it) }
         _conversionState.value = ConversionState.Idle
         _exportState.value = ExportState.Idle
+    }
+
+    /** Verwijdert alle tijdelijke afbeeldingen uit de app-cache. */
+    private fun clearImageCache(context: Context) {
+        context.cacheDir.resolve("images").deleteRecursively()
     }
 }

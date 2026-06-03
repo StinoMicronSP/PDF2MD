@@ -3,6 +3,7 @@ package be.pdf2md.domain
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import be.pdf2md.BuildConfig
 import be.pdf2md.ocr.MlKitOcrProvider
 import com.artifex.mupdf.fitz.Document
 import kotlinx.coroutines.Dispatchers
@@ -69,7 +70,7 @@ class PdfProcessor(private val context: Context) {
 
                 pageSections.add(MarkdownFormatter.formatPage(pageNum, text, pageImages))
             } catch (e: Exception) {
-                Log.e(TAG, "Fout op pagina $pageNum: ${e.message}")
+                if (BuildConfig.DEBUG) Log.e(TAG, "Fout op pagina $pageNum: ${e.message}")
                 pageSections.add(MarkdownFormatter.formatPage(pageNum, "", emptyList()))
             } finally {
                 page.destroy()

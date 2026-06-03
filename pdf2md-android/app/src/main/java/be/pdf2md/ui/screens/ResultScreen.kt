@@ -105,7 +105,7 @@ fun ResultScreen(
 
         OutlinedButton(
             onClick = {
-                viewModel.reset()
+                viewModel.reset(context)
                 onNavigateBack()
             },
             modifier = Modifier.fillMaxWidth(),

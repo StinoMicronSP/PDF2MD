@@ -2,6 +2,7 @@ package be.pdf2md.domain
 
 import android.content.Context
 import android.util.Log
+import be.pdf2md.BuildConfig
 import com.artifex.mupdf.fitz.Document
 import com.artifex.mupdf.fitz.Page
 import java.io.File
@@ -52,7 +53,7 @@ object ImageExtractor {
                 outputFile.writeBytes(imageBytes)
                 savedImages.add(outputFile)
             } catch (e: Exception) {
-                Log.w(TAG, "Afbeelding $idx op pagina $pageNum overgeslagen: ${e.message}")
+                if (BuildConfig.DEBUG) Log.w(TAG, "Afbeelding $idx op pagina $pageNum overgeslagen: ${e.message}")
             }
         }
 
