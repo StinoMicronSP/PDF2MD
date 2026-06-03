@@ -15,4 +15,13 @@
     <string name="btn_again">Opnieuw</string>
     <string name="export_success">Opgeslagen: %1$s</string>
     <string name="export_error">Export mislukt: %1$s</string>
+
+    <!-- SettingsScreen -->
+    <string name="settings_title">Instellingen</string>
+    <string name="settings_back">Terug</string>
+    <string name="settings_section_backup">Google Backup</string>
+    <string name="settings_backup_images_title">Afbeeldingen backuppen</string>
+    <string name="settings_backup_images_desc">Geëxtraheerde afbeeldingen automatisch synchroniseren via Google Backup. Standaard uitgeschakeld om je privacy te beschermen.</string>
+    <string name="settings_backup_status_on">Afbeeldingen worden opgeslagen in de app-opslag en meegenomen in Google Backup. Ze blijven bewaard totdat je de app verwijdert.</string>
+    <string name="settings_backup_status_off">Afbeeldingen worden tijdelijk opgeslagen en na export automatisch verwijderd. Ze worden nooit naar Google gestuurd.</string>
 </resources>

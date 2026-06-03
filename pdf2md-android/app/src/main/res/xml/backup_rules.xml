@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Backup regels voor Android 6–11 (API 26–30).
+    cacheDir wordt altijd uitgesloten — dit is de tijdelijke opslaglocatie
+    voor afbeeldingen wanneer de gebruiker backup NIET heeft ingeschakeld.
+    filesDir/images wordt bewust NIET uitgesloten: dat is de opt-in
+    backup locatie wanneer de gebruiker backup WEL inschakelt.
+-->
+<full-backup-content>
+    <exclude domain="cache" path="." />
+</full-backup-content>

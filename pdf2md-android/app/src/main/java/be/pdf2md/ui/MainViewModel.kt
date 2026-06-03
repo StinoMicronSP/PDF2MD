@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import be.pdf2md.data.UserPreferences
 import be.pdf2md.domain.PdfProcessor
 import be.pdf2md.domain.PdfResult
 import be.pdf2md.export.MarkdownExporter
@@ -35,12 +36,21 @@ class MainViewModel : ViewModel() {
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
     val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
 
-    /** Start de PDF conversie vanuit [uri]. */
+    // Lazy initialisatie — context wordt pas bij eerste aanroep meegegeven
+    private var _prefs: UserPreferences? = null
+
+    fun prefs(context: Context): UserPreferences {
+        if (_prefs == null) _prefs = UserPreferences(context.applicationContext)
+        return _prefs!!
+    }
+
+    /** Start de PDF conversie vanuit [uri]. Leest backup-instelling uit [UserPreferences]. */
     fun convertPdf(uri: Uri, context: Context) {
         viewModelScope.launch {
             _conversionState.value = ConversionState.Processing(0, 0)
+            val backupImages = prefs(context).backupImages.value
             runCatching {
-                PdfProcessor(context).process(uri) { current, total ->
+                PdfProcessor(context).process(uri, backupImages) { current, total ->
                     _conversionState.value = ConversionState.Processing(current, total)
                 }
             }.fold(
@@ -50,14 +60,15 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /** Exporteert het Markdown resultaat naar Downloads/ en wist daarna de cache. */
+    /** Exporteert het Markdown resultaat naar Downloads/ en wist daarna de tijdelijke cache. */
     fun exportMarkdown(context: Context, markdownText: String, filename: String) {
         viewModelScope.launch {
             runCatching {
                 MarkdownExporter.export(context, markdownText, filename)
             }.fold(
                 onSuccess = { path ->
-                    clearImageCache(context)
+                    // Alleen cacheDir wissen — filesDir/images blijft staan voor backup
+                    clearTempCache(context)
                     _exportState.value = ExportState.Success(path)
                 },
                 onFailure = { e -> _exportState.value = ExportState.Error(e.message ?: "Export mislukt") },
@@ -65,15 +76,15 @@ class MainViewModel : ViewModel() {
         }
     }
 
-    /** Zet de state terug naar [ConversionState.Idle] en wist de cache. */
+    /** Zet de state terug naar [ConversionState.Idle] en wist de tijdelijke cache. */
     fun reset(context: Context? = null) {
-        context?.let { clearImageCache(it) }
+        context?.let { clearTempCache(it) }
         _conversionState.value = ConversionState.Idle
         _exportState.value = ExportState.Idle
     }
 
-    /** Verwijdert alle tijdelijke afbeeldingen uit de app-cache. */
-    private fun clearImageCache(context: Context) {
+    /** Verwijdert tijdelijke afbeeldingen uit cacheDir. filesDir/images blijft intact voor backup. */
+    private fun clearTempCache(context: Context) {
         context.cacheDir.resolve("images").deleteRecursively()
     }
 }

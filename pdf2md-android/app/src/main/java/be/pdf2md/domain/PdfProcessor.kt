@@ -30,6 +30,7 @@ class PdfProcessor(private val context: Context) {
      */
     suspend fun process(
         uri: Uri,
+        backupImages: Boolean = false,
         onProgress: (current: Int, total: Int) -> Unit = { _, _ -> },
     ): PdfResult = withContext(Dispatchers.IO) {
         val inputStream = context.contentResolver.openInputStream(uri)
@@ -65,6 +66,7 @@ class PdfProcessor(private val context: Context) {
                     context = context,
                     pdfStem = pdfStem,
                     pageNum = pageNum,
+                    backupEnabled = backupImages,
                 )
                 allImages.addAll(pageImages)
 

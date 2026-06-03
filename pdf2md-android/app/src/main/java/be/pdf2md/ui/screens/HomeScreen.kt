@@ -58,13 +58,6 @@ fun HomeScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.headlineMedium,
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
         when (val s = state) {
             is ConversionState.Idle -> {
                 Button(

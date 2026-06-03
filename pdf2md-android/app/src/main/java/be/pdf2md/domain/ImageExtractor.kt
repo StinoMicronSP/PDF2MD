@@ -20,12 +20,14 @@ object ImageExtractor {
     private val supportedExtensions = setOf("jpeg", "jpg", "png", "webp")
 
     /**
-     * Extraheert alle ingebedde afbeeldingen van [page] en slaat ze op in
-     * `context.cacheDir/images/`. Bestandsnaamformaat:
-     * `{pdfStem}_img_{pageNum}_{idx}.{ext}`
+     * Extraheert alle ingebedde afbeeldingen van [page].
      *
-     * Exceptions per afbeelding worden gelogd en overgeslagen (zelfde gedrag
-     * als de Python try/except + continue).
+     * Opslaglocatie hangt af van [backupEnabled]:
+     * - `false` (default) → `context.cacheDir/images/` — nooit in Google Backup
+     * - `true`            → `context.filesDir/images/` — wél in Google Backup
+     *
+     * Bestandsnaamformaat: `{pdfStem}_img_{pageNum}_{idx}.{ext}`
+     * Exceptions per afbeelding worden gelogd en overgeslagen.
      *
      * @return lijst van [File] objecten voor elke opgeslagen afbeelding
      */
@@ -35,8 +37,10 @@ object ImageExtractor {
         context: Context,
         pdfStem: String,
         pageNum: Int,
+        backupEnabled: Boolean = false,
     ): List<File> {
-        val outputDir = File(context.cacheDir, "images").also { it.mkdirs() }
+        val baseDir = if (backupEnabled) context.filesDir else context.cacheDir
+        val outputDir = File(baseDir, "images").also { it.mkdirs() }
         val savedImages = mutableListOf<File>()
 
         val imageCount = page.countImages()
