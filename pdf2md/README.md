@@ -95,4 +95,13 @@ Zie [build_instructions.md](build_instructions.md) voor instructies om
 
 ## Licentie
 
-MIT
+GNU Affero General Public License v3.0 (AGPL v3)
+
+Dit project is open source. Je mag de broncode vrij gebruiken, aanpassen en
+distribueren, maar **elke distributie (ook als installer) vereist dat je de
+volledige broncode beschikbaar stelt** onder dezelfde AGPL v3-licentie.
+
+Zie het [LICENSE](../LICENSE)-bestand voor de volledige tekst.
+
+> **Waarom AGPL v3?** Dit project gebruikt PyMuPDF, dat zelf AGPL v3 is.
+> De licentie van een dependency bepaalt de minimale licentie van het project.
