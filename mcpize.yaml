@@ -1,0 +1,23 @@
+# MCPize Configuration
+# Docs: https://mcpize.com/docs/mcpize-yaml
+
+version: 1
+
+name: "PDF to Markdown Converter"
+slug: "pdf2md"
+
+runtime: python
+entry: "pdf2md/apps/main_gui.py"
+
+build:
+  install: "pip install ."
+
+start:
+  type: stdio
+  command: "python"
+  args:
+    - "-m"
+    - "pdf2md.apps.main_gui"
+
+bridge:
+  mode: stdio
